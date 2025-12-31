@@ -68,17 +68,40 @@ func NewClient(apiKey string, opts ...ClientOption) *Client {
 	return c
 }
 
-// ConsultaEnderecoResult represents the result of an address query.
-type ConsultaEnderecoResult struct {
-	SQL            string  `json:"sql"`
+// ConsultaEnderecoData represents the basic address data.
+type ConsultaEnderecoData struct {
+	SQLBase        string  `json:"sql_base"`
 	Logradouro     string  `json:"logradouro"`
 	Numero         string  `json:"numero"`
 	Bairro         string  `json:"bairro"`
 	CEP            string  `json:"cep"`
 	AreaTerreno    float64 `json:"area_terreno"`
-	AreaConstruida float64 `json:"area_construida"`
 	TipoUso        string  `json:"tipo_uso"`
-	Zona           string  `json:"zona"`
+}
+
+// DadosIPTU represents detailed IPTU data.
+type DadosIPTU struct {
+	SQL            string  `json:"sql"`
+	AnoReferencia  int     `json:"ano_referencia"`
+	Logradouro     string  `json:"logradouro"`
+	Numero         int     `json:"numero"`
+	Bairro         string  `json:"bairro"`
+	CEP            string  `json:"cep"`
+	AreaTerreno    float64 `json:"area_terreno"`
+	AreaConstruida float64 `json:"area_construida"`
+	ValorTerreno   float64 `json:"valor_terreno"`
+	ValorConstrucao float64 `json:"valor_construcao"`
+	ValorVenal     float64 `json:"valor_venal"`
+	Finalidade     string  `json:"finalidade"`
+	TipoConstrucao string  `json:"tipo_construcao"`
+	AnoConstrucao  int     `json:"ano_construcao"`
+}
+
+// ConsultaEnderecoResult represents the result of an address query.
+type ConsultaEnderecoResult struct {
+	Success   bool                  `json:"success"`
+	Data      ConsultaEnderecoData  `json:"data"`
+	DadosIPTU DadosIPTU             `json:"dados_iptu"`
 }
 
 // ConsultaSQLResult represents the result of a SQL query.

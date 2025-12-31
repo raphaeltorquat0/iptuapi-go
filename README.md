@@ -28,7 +28,8 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("SQL: %s, Bairro: %s\n", resultado.SQL, resultado.Bairro)
+    fmt.Printf("SQL: %s, Bairro: %s\n", resultado.Data.SQLBase, resultado.Data.Bairro)
+    fmt.Printf("Valor Venal: R$ %.2f\n", resultado.DadosIPTU.ValorVenal)
 
     // Consulta por SQL (Starter+)
     dados, err := client.ConsultaSQL("100-01-001-001")
