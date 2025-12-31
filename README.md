@@ -5,7 +5,7 @@ SDK oficial para integração com a IPTU API.
 ## Instalação
 
 ```bash
-go get github.com/iptuapi/iptuapi-go
+go get github.com/raphaeltorquat0/iptuapi-go
 ```
 
 ## Uso Rápido
@@ -17,7 +17,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/iptuapi/iptuapi-go"
+    "github.com/raphaeltorquat0/iptuapi-go"
 )
 
 func main() {
