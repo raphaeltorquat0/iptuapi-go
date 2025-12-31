@@ -27,6 +27,14 @@ const (
 	defaultTimeout = 30 * time.Second
 )
 
+// Cidade represents supported cities.
+type Cidade string
+
+const (
+	CidadeSaoPaulo       Cidade = "sao_paulo"
+	CidadeBeloHorizonte  Cidade = "belo_horizonte"
+)
+
 // Client represents an IPTU API client.
 type Client struct {
 	apiKey     string
@@ -95,6 +103,27 @@ type DadosIPTU struct {
 	Finalidade     string  `json:"finalidade"`
 	TipoConstrucao string  `json:"tipo_construcao"`
 	AnoConstrucao  int     `json:"ano_construcao"`
+}
+
+// ConsultaIPTUResult represents the result from multi-city IPTU query.
+type ConsultaIPTUResult struct {
+	SQL             string   `json:"sql"`
+	Ano             int      `json:"ano"`
+	Logradouro      string   `json:"logradouro"`
+	Numero          *int     `json:"numero"`
+	Complemento     *string  `json:"complemento"`
+	Bairro          *string  `json:"bairro"`
+	CEP             string   `json:"cep"`
+	AreaTerreno     *float64 `json:"area_terreno"`
+	AreaConstruida  *float64 `json:"area_construida"`
+	ValorTerreno    *float64 `json:"valor_terreno"`
+	ValorConstrucao *float64 `json:"valor_construcao"`
+	ValorVenal      float64  `json:"valor_venal"`
+	Finalidade      *string  `json:"finalidade"`
+	TipoConstrucao  *string  `json:"tipo_construcao"`
+	AnoConstrucao   *int     `json:"ano_construcao"`
+	Cidade          string   `json:"cidade"`
+	Fonte           string   `json:"fonte"`
 }
 
 // ConsultaEnderecoResult represents the result of an address query.
@@ -283,4 +312,73 @@ func (c *Client) ValuationEstimate(params ValuationParams) (*ValuationResult, er
 		return nil, err
 	}
 	return &result, nil
+}
+
+// ConsultaIPTUOptions contains optional parameters for ConsultaIPTU.
+type ConsultaIPTUOptions struct {
+	Numero *int
+	Ano    int
+	Limit  int
+}
+
+// ConsultaIPTU searches for IPTU data by address in any supported city.
+//
+// Example:
+//
+//	results, err := client.ConsultaIPTU(iptuapi.CidadeBeloHorizonte, "Afonso Pena", nil)
+//	// or with options:
+//	opts := &iptuapi.ConsultaIPTUOptions{Ano: 2024, Limit: 10}
+//	results, err := client.ConsultaIPTU(iptuapi.CidadeSaoPaulo, "Paulista", opts)
+func (c *Client) ConsultaIPTU(cidade Cidade, logradouro string, opts *ConsultaIPTUOptions) ([]ConsultaIPTUResult, error) {
+	params := url.Values{}
+	params.Set("logradouro", logradouro)
+
+	if opts != nil {
+		if opts.Numero != nil {
+			params.Set("numero", fmt.Sprintf("%d", *opts.Numero))
+		}
+		if opts.Ano > 0 {
+			params.Set("ano", fmt.Sprintf("%d", opts.Ano))
+		} else {
+			params.Set("ano", "2024")
+		}
+		if opts.Limit > 0 {
+			params.Set("limit", fmt.Sprintf("%d", opts.Limit))
+		} else {
+			params.Set("limit", "20")
+		}
+	} else {
+		params.Set("ano", "2024")
+		params.Set("limit", "20")
+	}
+
+	var result []ConsultaIPTUResult
+	err := c.doRequest("GET", fmt.Sprintf("/dados/iptu/%s/endereco", cidade), params, nil, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ConsultaIPTUSQL searches for IPTU data by property identifier in any supported city.
+// For São Paulo, use the SQL number. For Belo Horizonte, use the Índice Cadastral.
+//
+// Example:
+//
+//	// São Paulo
+//	results, err := client.ConsultaIPTUSQL(iptuapi.CidadeSaoPaulo, "00904801381", nil)
+//	// Belo Horizonte
+//	results, err := client.ConsultaIPTUSQL(iptuapi.CidadeBeloHorizonte, "007028 005 0086", nil)
+func (c *Client) ConsultaIPTUSQL(cidade Cidade, identificador string, ano *int) ([]ConsultaIPTUResult, error) {
+	params := url.Values{}
+	if ano != nil {
+		params.Set("ano", fmt.Sprintf("%d", *ano))
+	}
+
+	var result []ConsultaIPTUResult
+	err := c.doRequest("GET", fmt.Sprintf("/dados/iptu/%s/sql/%s", cidade, url.PathEscape(identificador)), params, nil, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
