@@ -31,8 +31,9 @@ const (
 type Cidade string
 
 const (
-	CidadeSaoPaulo       Cidade = "sao_paulo"
-	CidadeBeloHorizonte  Cidade = "belo_horizonte"
+	CidadeSaoPaulo      Cidade = "sao_paulo"
+	CidadeBeloHorizonte Cidade = "belo_horizonte"
+	CidadeRecife        Cidade = "recife"
 )
 
 // Client represents an IPTU API client.
@@ -107,23 +108,29 @@ type DadosIPTU struct {
 
 // ConsultaIPTUResult represents the result from multi-city IPTU query.
 type ConsultaIPTUResult struct {
-	SQL             string   `json:"sql"`
-	Ano             int      `json:"ano"`
-	Logradouro      string   `json:"logradouro"`
-	Numero          *int     `json:"numero"`
-	Complemento     *string  `json:"complemento"`
-	Bairro          *string  `json:"bairro"`
-	CEP             string   `json:"cep"`
-	AreaTerreno     *float64 `json:"area_terreno"`
-	AreaConstruida  *float64 `json:"area_construida"`
-	ValorTerreno    *float64 `json:"valor_terreno"`
-	ValorConstrucao *float64 `json:"valor_construcao"`
-	ValorVenal      float64  `json:"valor_venal"`
-	Finalidade      *string  `json:"finalidade"`
-	TipoConstrucao  *string  `json:"tipo_construcao"`
-	AnoConstrucao   *int     `json:"ano_construcao"`
-	Cidade          string   `json:"cidade"`
-	Fonte           string   `json:"fonte"`
+	SQL             string      `json:"sql"`
+	Ano             int         `json:"ano"`
+	Logradouro      string      `json:"logradouro"`
+	Numero          interface{} `json:"numero"` // int or string (Recife uses string)
+	Complemento     *string     `json:"complemento"`
+	Bairro          *string     `json:"bairro"`
+	CEP             string      `json:"cep"`
+	AreaTerreno     *float64    `json:"area_terreno"`
+	AreaConstruida  *float64    `json:"area_construida"`
+	ValorTerreno    *float64    `json:"valor_terreno"`
+	ValorConstrucao *float64    `json:"valor_construcao"`
+	ValorVenal      float64     `json:"valor_venal"`
+	ValorImovel     *float64    `json:"valor_imovel"`  // Recife: estimated total value
+	ValorIPTU       *float64    `json:"valor_iptu"`    // Recife: IPTU amount
+	Finalidade      *string     `json:"finalidade"`
+	TipoConstrucao  *string     `json:"tipo_construcao"`
+	AnoConstrucao   *int        `json:"ano_construcao"`
+	Pavimentos      *int        `json:"pavimentos"`
+	FracaoIdeal     *string     `json:"fracao_ideal"`
+	Latitude        *float64    `json:"latitude"`  // Recife: coordinates
+	Longitude       *float64    `json:"longitude"` // Recife: coordinates
+	Cidade          string      `json:"cidade"`
+	Fonte           string      `json:"fonte"`
 }
 
 // ConsultaEnderecoResult represents the result of an address query.
@@ -322,12 +329,14 @@ type ConsultaIPTUOptions struct {
 }
 
 // ConsultaIPTU searches for IPTU data by address in any supported city.
+// Supported cities: CidadeSaoPaulo, CidadeBeloHorizonte, CidadeRecife
+// Recife includes latitude/longitude coordinates.
 //
 // Example:
 //
-//	results, err := client.ConsultaIPTU(iptuapi.CidadeBeloHorizonte, "Afonso Pena", nil)
+//	results, err := client.ConsultaIPTU(iptuapi.CidadeRecife, "Boa Viagem", nil)
 //	// or with options:
-//	opts := &iptuapi.ConsultaIPTUOptions{Ano: 2024, Limit: 10}
+//	opts := &iptuapi.ConsultaIPTUOptions{Ano: 2025, Limit: 10}
 //	results, err := client.ConsultaIPTU(iptuapi.CidadeSaoPaulo, "Paulista", opts)
 func (c *Client) ConsultaIPTU(cidade Cidade, logradouro string, opts *ConsultaIPTUOptions) ([]ConsultaIPTUResult, error) {
 	params := url.Values{}
@@ -340,7 +349,7 @@ func (c *Client) ConsultaIPTU(cidade Cidade, logradouro string, opts *ConsultaIP
 		if opts.Ano > 0 {
 			params.Set("ano", fmt.Sprintf("%d", opts.Ano))
 		} else {
-			params.Set("ano", "2024")
+			params.Set("ano", "2025")
 		}
 		if opts.Limit > 0 {
 			params.Set("limit", fmt.Sprintf("%d", opts.Limit))
@@ -348,7 +357,7 @@ func (c *Client) ConsultaIPTU(cidade Cidade, logradouro string, opts *ConsultaIP
 			params.Set("limit", "20")
 		}
 	} else {
-		params.Set("ano", "2024")
+		params.Set("ano", "2025")
 		params.Set("limit", "20")
 	}
 
@@ -362,6 +371,7 @@ func (c *Client) ConsultaIPTU(cidade Cidade, logradouro string, opts *ConsultaIP
 
 // ConsultaIPTUSQL searches for IPTU data by property identifier in any supported city.
 // For São Paulo, use the SQL number. For Belo Horizonte, use the Índice Cadastral.
+// For Recife, use the Contribuinte number. Recife includes latitude/longitude.
 //
 // Example:
 //
@@ -369,6 +379,8 @@ func (c *Client) ConsultaIPTU(cidade Cidade, logradouro string, opts *ConsultaIP
 //	results, err := client.ConsultaIPTUSQL(iptuapi.CidadeSaoPaulo, "00904801381", nil)
 //	// Belo Horizonte
 //	results, err := client.ConsultaIPTUSQL(iptuapi.CidadeBeloHorizonte, "007028 005 0086", nil)
+//	// Recife
+//	results, err := client.ConsultaIPTUSQL(iptuapi.CidadeRecife, "123456789", nil)
 func (c *Client) ConsultaIPTUSQL(cidade Cidade, identificador string, ano *int) ([]ConsultaIPTUResult, error) {
 	params := url.Values{}
 	if ano != nil {
