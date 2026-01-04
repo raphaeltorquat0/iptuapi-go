@@ -321,6 +321,117 @@ func (c *Client) ValuationEstimate(params ValuationParams) (*ValuationResult, er
 	return &result, nil
 }
 
+// EvaluateParams contains parameters for property evaluation.
+type EvaluateParams struct {
+	// SQL number of the property (alternative to address)
+	SQL string `json:"sql,omitempty"`
+	// Street name (alternative to SQL)
+	Logradouro string `json:"logradouro,omitempty"`
+	// Property number
+	Numero int `json:"numero,omitempty"`
+	// Unit/apartment
+	Complemento string `json:"complemento,omitempty"`
+	// Neighborhood
+	Bairro string `json:"bairro,omitempty"`
+	// City code (sp, bh)
+	Cidade string `json:"cidade,omitempty"`
+	// Include ITBI-based estimate (default: true)
+	IncluirItbi *bool `json:"incluir_itbi,omitempty"`
+	// Include comparable properties (default: true)
+	IncluirComparaveis *bool `json:"incluir_comparaveis,omitempty"`
+}
+
+// AVMEstimate represents the AVM (Machine Learning) model estimate.
+type AVMEstimate struct {
+	ValorEstimado float64 `json:"valor_estimado"`
+	ValorMinimo   float64 `json:"valor_minimo"`
+	ValorMaximo   float64 `json:"valor_maximo"`
+	ValorM2       float64 `json:"valor_m2"`
+	Confianca     float64 `json:"confianca"`
+	ModeloVersao  string  `json:"modelo_versao"`
+}
+
+// ITBIMarketEstimate represents the estimate based on real ITBI transactions.
+type ITBIMarketEstimate struct {
+	ValorEstimado    float64 `json:"valor_estimado"`
+	FaixaMinima      float64 `json:"faixa_minima"`
+	FaixaMaxima      float64 `json:"faixa_maxima"`
+	ValorM2Mediana   float64 `json:"valor_m2_mediana"`
+	TotalTransacoes  int     `json:"total_transacoes"`
+	Periodo          string  `json:"periodo"`
+	Fonte            string  `json:"fonte"`
+}
+
+// FinalValuation represents the combined final valuation.
+type FinalValuation struct {
+	Estimado   float64 `json:"estimado"`
+	Minimo     float64 `json:"minimo"`
+	Maximo     float64 `json:"maximo"`
+	Metodo     string  `json:"metodo"`
+	PesoAvm    float64 `json:"peso_avm"`
+	PesoItbi   float64 `json:"peso_itbi"`
+	Confianca  float64 `json:"confianca"`
+	Nota       *string `json:"nota,omitempty"`
+}
+
+// PropertyEvaluationMetadata contains metadata about the evaluation.
+type PropertyEvaluationMetadata struct {
+	ProcessadoEm string   `json:"processado_em"`
+	Fontes       []string `json:"fontes"`
+	Cidade       string   `json:"cidade"`
+}
+
+// PropertyEvaluation represents the complete property evaluation result.
+type PropertyEvaluation struct {
+	Success       bool                        `json:"success"`
+	Imovel        map[string]interface{}      `json:"imovel"`
+	AvaliacaoAvm  *AVMEstimate                `json:"avaliacao_avm,omitempty"`
+	AvaliacaoItbi *ITBIMarketEstimate         `json:"avaliacao_itbi,omitempty"`
+	ValorFinal    FinalValuation              `json:"valor_final"`
+	Comparaveis   map[string]interface{}      `json:"comparaveis,omitempty"`
+	Metadata      PropertyEvaluationMetadata  `json:"metadata"`
+}
+
+// ValuationEvaluate evaluates a property by address OR SQL number.
+// Combines data from the AVM (ML) model with real ITBI transactions.
+// Requires Pro plan or higher.
+//
+// Example by SQL:
+//
+//	result, err := client.ValuationEvaluate(iptuapi.EvaluateParams{
+//	    SQL:    "123.456.0001-0",
+//	    Cidade: "sp",
+//	})
+//
+// Example by address:
+//
+//	result, err := client.ValuationEvaluate(iptuapi.EvaluateParams{
+//	    Logradouro: "Avenida Paulista",
+//	    Numero:     1000,
+//	    Cidade:     "sp",
+//	})
+func (c *Client) ValuationEvaluate(params EvaluateParams) (*PropertyEvaluation, error) {
+	// Set defaults
+	if params.Cidade == "" {
+		params.Cidade = "sp"
+	}
+	if params.IncluirItbi == nil {
+		defaultTrue := true
+		params.IncluirItbi = &defaultTrue
+	}
+	if params.IncluirComparaveis == nil {
+		defaultTrue := true
+		params.IncluirComparaveis = &defaultTrue
+	}
+
+	var result PropertyEvaluation
+	err := c.doRequest("POST", "/valuation/evaluate", nil, params, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ConsultaIPTUOptions contains optional parameters for ConsultaIPTU.
 type ConsultaIPTUOptions struct {
 	Numero *int
