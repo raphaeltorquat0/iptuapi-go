@@ -31,9 +31,14 @@ const (
 type Cidade string
 
 const (
-	CidadeSaoPaulo      Cidade = "sao_paulo"
-	CidadeBeloHorizonte Cidade = "belo_horizonte"
+	CidadeSaoPaulo      Cidade = "sp"
+	CidadeBeloHorizonte Cidade = "bh"
 	CidadeRecife        Cidade = "recife"
+	CidadePortoAlegre   Cidade = "poa"
+	CidadeFortaleza     Cidade = "fortaleza"
+	CidadeCuritiba      Cidade = "curitiba"
+	CidadeRioDeJaneiro  Cidade = "rj"
+	CidadeBrasilia      Cidade = "brasilia"
 )
 
 // Client represents an IPTU API client.
