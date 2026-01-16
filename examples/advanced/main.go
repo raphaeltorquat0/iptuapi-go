@@ -1,9 +1,7 @@
-// Exemplo avancado com retry, timeout e tratamento de erros
+// Exemplo avancado com timeout customizado e tratamento de erros
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -18,87 +16,50 @@ func main() {
 		log.Fatal("IPTU_API_KEY environment variable is required")
 	}
 
-	// Cliente com configuracao avancada
+	// Cliente com timeout customizado
 	client := iptuapi.NewClient(apiKey,
 		iptuapi.WithTimeout(60*time.Second),
-		iptuapi.WithRetry(&iptuapi.RetryConfig{
-			MaxRetries:      5,
-			InitialDelay:    time.Second,
-			MaxDelay:        30 * time.Second,
-			BackoffFactor:   2.0,
-			RetryableStatus: []int{429, 500, 502, 503, 504},
-		}),
-		iptuapi.WithLogger(&iptuapi.DefaultLogger{Enabled: true}),
 	)
-
-	// Context com timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	// Consulta com tratamento de erros
 	fmt.Println("=== Consulta com Tratamento de Erros ===")
-	resultado, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
-		Logradouro:        "Avenida Paulista",
-		Numero:            "1000",
-		Cidade:            iptuapi.CidadeSaoPaulo,
-		IncluirHistorico:  true,
-		IncluirZoneamento: true,
-	})
-
+	resultado, err := client.ConsultaEndereco("Avenida Paulista", "1000")
 	if err != nil {
 		handleError(err)
 		return
 	}
 
-	fmt.Printf("SQL: %s\n", resultado.SQL)
-	fmt.Printf("Valor Venal: R$ %.2f\n", resultado.ValorVenalTotal)
+	fmt.Printf("SQL: %s\n", resultado.DadosIPTU.SQL)
+	fmt.Printf("Valor Venal: R$ %.2f\n", resultado.DadosIPTU.ValorVenal)
 
-	// Historico
-	if len(resultado.Historico) > 0 {
-		fmt.Println("\n=== Historico ===")
-		for _, h := range resultado.Historico {
-			fmt.Printf("  %d: R$ %.2f\n", h.Ano, h.ValorVenalTotal)
-		}
+	// Consulta por SQL
+	fmt.Println("\n=== Consulta por SQL ===")
+	sqlResult, err := client.ConsultaSQL(resultado.DadosIPTU.SQL)
+	if err != nil {
+		handleError(err)
+		return
 	}
 
-	// Zoneamento
-	if resultado.Zoneamento != nil {
-		fmt.Println("\n=== Zoneamento ===")
-		fmt.Printf("  Zona: %s (%s)\n", resultado.Zoneamento.Zona, resultado.Zoneamento.ZonaDescricao)
-		fmt.Printf("  CA Basico: %.2f\n", resultado.Zoneamento.CoeficienteAproveitamentoBasico)
-		fmt.Printf("  CA Maximo: %.2f\n", resultado.Zoneamento.CoeficienteAproveitamentoMaximo)
-	}
+	fmt.Printf("SQL: %s\n", sqlResult.SQL)
+	fmt.Printf("Ano: %d\n", sqlResult.Ano)
+	fmt.Printf("Logradouro: %s, %s\n", sqlResult.Logradouro, sqlResult.Numero)
+	fmt.Printf("Bairro: %s\n", sqlResult.Bairro)
+	fmt.Printf("Area Terreno: %.2f m²\n", sqlResult.AreaTerreno)
+	fmt.Printf("Area Construida: %.2f m²\n", sqlResult.AreaConstruida)
+	fmt.Printf("Valor Venal Total: R$ %.2f\n", sqlResult.ValorVenal)
+	fmt.Printf("IPTU Valor: R$ %.2f\n", sqlResult.IPTUValor)
 }
 
 func handleError(err error) {
-	var authErr *iptuapi.AuthenticationError
-	var forbiddenErr *iptuapi.ForbiddenError
-	var notFoundErr *iptuapi.NotFoundError
-	var rateLimitErr *iptuapi.RateLimitError
-	var validationErr *iptuapi.ValidationError
-	var serverErr *iptuapi.ServerError
-
-	switch {
-	case errors.As(err, &authErr):
-		fmt.Println("Erro: API Key invalida")
-	case errors.As(err, &forbiddenErr):
-		fmt.Printf("Erro: Plano nao autorizado. Requer: %s\n", forbiddenErr.RequiredPlan)
-	case errors.As(err, &notFoundErr):
+	if iptuapi.IsAuthError(err) {
+		fmt.Println("Erro: API Key invalida ou expirada")
+	} else if iptuapi.IsNotFound(err) {
 		fmt.Println("Erro: Imovel nao encontrado")
-	case errors.As(err, &rateLimitErr):
-		fmt.Printf("Erro: Rate limit excedido. Retry em %d segundos\n", rateLimitErr.RetryAfter)
-	case errors.As(err, &validationErr):
-		fmt.Println("Erro: Parametros invalidos")
-		for _, e := range validationErr.Errors {
-			fmt.Printf("  - %s: %s\n", e.Field, e.Message)
-		}
-	case errors.As(err, &serverErr):
-		fmt.Printf("Erro: Servidor (status %d)\n", serverErr.StatusCode)
-	case errors.Is(err, context.DeadlineExceeded):
-		fmt.Println("Erro: Timeout")
-	case errors.Is(err, context.Canceled):
-		fmt.Println("Erro: Cancelado")
-	default:
+	} else if iptuapi.IsRateLimit(err) {
+		fmt.Println("Erro: Rate limit excedido. Aguarde antes de tentar novamente.")
+	} else if apiErr, ok := err.(*iptuapi.APIError); ok {
+		fmt.Printf("Erro da API (status %d): %s\n", apiErr.StatusCode, apiErr.Message)
+	} else {
 		fmt.Printf("Erro: %v\n", err)
 	}
 }
