@@ -15,6 +15,7 @@ package iptuapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -84,31 +85,31 @@ func NewClient(apiKey string, opts ...ClientOption) *Client {
 
 // ConsultaEnderecoData represents the basic address data.
 type ConsultaEnderecoData struct {
-	SQLBase        string  `json:"sql_base"`
-	Logradouro     string  `json:"logradouro"`
-	Numero         string  `json:"numero"`
-	Bairro         string  `json:"bairro"`
-	CEP            string  `json:"cep"`
-	AreaTerreno    float64 `json:"area_terreno"`
-	TipoUso        string  `json:"tipo_uso"`
+	SQLBase     string  `json:"sql_base"`
+	Logradouro  string  `json:"logradouro"`
+	Numero      string  `json:"numero"`
+	Bairro      string  `json:"bairro"`
+	CEP         string  `json:"cep"`
+	AreaTerreno float64 `json:"area_terreno"`
+	TipoUso     string  `json:"tipo_uso"`
 }
 
 // DadosIPTU represents detailed IPTU data.
 type DadosIPTU struct {
-	SQL            string  `json:"sql"`
-	AnoReferencia  int     `json:"ano_referencia"`
-	Logradouro     string  `json:"logradouro"`
-	Numero         int     `json:"numero"`
-	Bairro         string  `json:"bairro"`
-	CEP            string  `json:"cep"`
-	AreaTerreno    float64 `json:"area_terreno"`
-	AreaConstruida float64 `json:"area_construida"`
-	ValorTerreno   float64 `json:"valor_terreno"`
+	SQL             string  `json:"sql"`
+	AnoReferencia   int     `json:"ano_referencia"`
+	Logradouro      string  `json:"logradouro"`
+	Numero          int     `json:"numero"`
+	Bairro          string  `json:"bairro"`
+	CEP             string  `json:"cep"`
+	AreaTerreno     float64 `json:"area_terreno"`
+	AreaConstruida  float64 `json:"area_construida"`
+	ValorTerreno    float64 `json:"valor_terreno"`
 	ValorConstrucao float64 `json:"valor_construcao"`
-	ValorVenal     float64 `json:"valor_venal"`
-	Finalidade     string  `json:"finalidade"`
-	TipoConstrucao string  `json:"tipo_construcao"`
-	AnoConstrucao  int     `json:"ano_construcao"`
+	ValorVenal      float64 `json:"valor_venal"`
+	Finalidade      string  `json:"finalidade"`
+	TipoConstrucao  string  `json:"tipo_construcao"`
+	AnoConstrucao   int     `json:"ano_construcao"`
 }
 
 // ConsultaIPTUResult represents the result from multi-city IPTU query.
@@ -125,8 +126,8 @@ type ConsultaIPTUResult struct {
 	ValorTerreno    *float64    `json:"valor_terreno"`
 	ValorConstrucao *float64    `json:"valor_construcao"`
 	ValorVenal      float64     `json:"valor_venal"`
-	ValorImovel     *float64    `json:"valor_imovel"`  // Recife: estimated total value
-	ValorIPTU       *float64    `json:"valor_iptu"`    // Recife: IPTU amount
+	ValorImovel     *float64    `json:"valor_imovel"` // Recife: estimated total value
+	ValorIPTU       *float64    `json:"valor_iptu"`   // Recife: IPTU amount
 	Finalidade      *string     `json:"finalidade"`
 	TipoConstrucao  *string     `json:"tipo_construcao"`
 	AnoConstrucao   *int        `json:"ano_construcao"`
@@ -140,9 +141,9 @@ type ConsultaIPTUResult struct {
 
 // ConsultaEnderecoResult represents the result of an address query.
 type ConsultaEnderecoResult struct {
-	Success   bool                  `json:"success"`
-	Data      ConsultaEnderecoData  `json:"data"`
-	DadosIPTU DadosIPTU             `json:"dados_iptu"`
+	Success   bool                 `json:"success"`
+	Data      ConsultaEnderecoData `json:"data"`
+	DadosIPTU DadosIPTU            `json:"dados_iptu"`
 }
 
 // ConsultaSQLResult represents the result of a SQL query.
@@ -173,13 +174,13 @@ type ValuationParams struct {
 
 // ValuationResult represents the result of a valuation estimate.
 type ValuationResult struct {
-	Success        bool    `json:"success"`
-	ValorEstimado  float64 `json:"valor_estimado"`
-	ValorMinimo    float64 `json:"valor_minimo"`
-	ValorMaximo    float64 `json:"valor_maximo"`
-	ValorM2        float64 `json:"valor_m2"`
-	Confianca      float64 `json:"confianca"`
-	ModeloVersao   string  `json:"modelo_versao"`
+	Success       bool    `json:"success"`
+	ValorEstimado float64 `json:"valor_estimado"`
+	ValorMinimo   float64 `json:"valor_minimo"`
+	ValorMaximo   float64 `json:"valor_maximo"`
+	ValorM2       float64 `json:"valor_m2"`
+	Confianca     float64 `json:"confianca"`
+	ModeloVersao  string  `json:"modelo_versao"`
 }
 
 // APIError represents an error from the IPTU API.
@@ -194,7 +195,8 @@ func (e *APIError) Error() string {
 
 // IsNotFound returns true if the error is a 404 Not Found.
 func IsNotFound(err error) bool {
-	if apiErr, ok := err.(*APIError); ok {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
 		return apiErr.StatusCode == http.StatusNotFound
 	}
 	return false
@@ -202,7 +204,8 @@ func IsNotFound(err error) bool {
 
 // IsRateLimit returns true if the error is a 429 Rate Limit.
 func IsRateLimit(err error) bool {
-	if apiErr, ok := err.(*APIError); ok {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
 		return apiErr.StatusCode == http.StatusTooManyRequests
 	}
 	return false
@@ -210,7 +213,8 @@ func IsRateLimit(err error) bool {
 
 // IsAuthError returns true if the error is a 401 Authentication error.
 func IsAuthError(err error) bool {
-	if apiErr, ok := err.(*APIError); ok {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
 		return apiErr.StatusCode == http.StatusUnauthorized
 	}
 	return false
@@ -228,9 +232,9 @@ func (c *Client) doRequest(method, endpoint string, params url.Values, body inte
 
 	var reqBody io.Reader
 	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return err
+		jsonBody, marshalErr := json.Marshal(body)
+		if marshalErr != nil {
+			return marshalErr
 		}
 		reqBody = bytes.NewReader(jsonBody)
 	}
@@ -258,7 +262,7 @@ func (c *Client) doRequest(method, endpoint string, params url.Values, body inte
 		var errResp struct {
 			Detail string `json:"detail"`
 		}
-		json.Unmarshal(respBody, &errResp)
+		_ = json.Unmarshal(respBody, &errResp) // Best effort to parse error detail
 
 		message := errResp.Detail
 		if message == "" {
@@ -358,25 +362,25 @@ type AVMEstimate struct {
 
 // ITBIMarketEstimate represents the estimate based on real ITBI transactions.
 type ITBIMarketEstimate struct {
-	ValorEstimado    float64 `json:"valor_estimado"`
-	FaixaMinima      float64 `json:"faixa_minima"`
-	FaixaMaxima      float64 `json:"faixa_maxima"`
-	ValorM2Mediana   float64 `json:"valor_m2_mediana"`
-	TotalTransacoes  int     `json:"total_transacoes"`
-	Periodo          string  `json:"periodo"`
-	Fonte            string  `json:"fonte"`
+	ValorEstimado   float64 `json:"valor_estimado"`
+	FaixaMinima     float64 `json:"faixa_minima"`
+	FaixaMaxima     float64 `json:"faixa_maxima"`
+	ValorM2Mediana  float64 `json:"valor_m2_mediana"`
+	TotalTransacoes int     `json:"total_transacoes"`
+	Periodo         string  `json:"periodo"`
+	Fonte           string  `json:"fonte"`
 }
 
 // FinalValuation represents the combined final valuation.
 type FinalValuation struct {
-	Estimado   float64 `json:"estimado"`
-	Minimo     float64 `json:"minimo"`
-	Maximo     float64 `json:"maximo"`
-	Metodo     string  `json:"metodo"`
-	PesoAvm    float64 `json:"peso_avm"`
-	PesoItbi   float64 `json:"peso_itbi"`
-	Confianca  float64 `json:"confianca"`
-	Nota       *string `json:"nota,omitempty"`
+	Estimado  float64 `json:"estimado"`
+	Minimo    float64 `json:"minimo"`
+	Maximo    float64 `json:"maximo"`
+	Metodo    string  `json:"metodo"`
+	PesoAvm   float64 `json:"peso_avm"`
+	PesoItbi  float64 `json:"peso_itbi"`
+	Confianca float64 `json:"confianca"`
+	Nota      *string `json:"nota,omitempty"`
 }
 
 // PropertyEvaluationMetadata contains metadata about the evaluation.
@@ -388,13 +392,13 @@ type PropertyEvaluationMetadata struct {
 
 // PropertyEvaluation represents the complete property evaluation result.
 type PropertyEvaluation struct {
-	Success       bool                        `json:"success"`
-	Imovel        map[string]interface{}      `json:"imovel"`
-	AvaliacaoAvm  *AVMEstimate                `json:"avaliacao_avm,omitempty"`
-	AvaliacaoItbi *ITBIMarketEstimate         `json:"avaliacao_itbi,omitempty"`
-	ValorFinal    FinalValuation              `json:"valor_final"`
-	Comparaveis   map[string]interface{}      `json:"comparaveis,omitempty"`
-	Metadata      PropertyEvaluationMetadata  `json:"metadata"`
+	Success       bool                       `json:"success"`
+	Imovel        map[string]interface{}     `json:"imovel"`
+	AvaliacaoAvm  *AVMEstimate               `json:"avaliacao_avm,omitempty"`
+	AvaliacaoItbi *ITBIMarketEstimate        `json:"avaliacao_itbi,omitempty"`
+	ValorFinal    FinalValuation             `json:"valor_final"`
+	Comparaveis   map[string]interface{}     `json:"comparaveis,omitempty"`
+	Metadata      PropertyEvaluationMetadata `json:"metadata"`
 }
 
 // ValuationEvaluate evaluates a property by address OR SQL number.
