@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentacao
+    url: https://iptuapi.com.br/docs
+    about: Consulte a documentacao antes de abrir uma issue
+  - name: Suporte
+    url: mailto:suporte@iptuapi.com.br
+    about: Para questoes de conta ou billing, entre em contato pelo email

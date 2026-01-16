@@ -1,0 +1,63 @@
+name: Feature Request
+description: Sugerir uma nova funcionalidade
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por sugerir uma melhoria! Descreva sua ideia abaixo.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: Verifiquei que nao existe uma issue similar aberta
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema ou Motivacao
+      description: Qual problema essa feature resolveria?
+      placeholder: Estou sempre frustrado quando...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solucao Proposta
+      description: Como voce gostaria que funcionasse?
+      placeholder: Seria ideal se o SDK pudesse...
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Exemplo de Uso
+      description: Como seria a API ideal?
+      render: go
+      placeholder: |
+        // Exemplo de como a feature seria usada
+        client := iptuapi.NewClient("api_key")
+        result, err := client.NovaFuncionalidade(ctx, params)
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas Consideradas
+      description: Outras solucoes que voce considerou
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Prioridade para Voce
+      options:
+        - Alta - Bloqueia meu uso do SDK
+        - Media - Seria muito util
+        - Baixa - Nice to have
+    validations:
+      required: true

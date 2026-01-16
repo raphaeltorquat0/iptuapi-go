@@ -1,0 +1,93 @@
+name: Bug Report
+description: Reportar um bug no SDK
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar um bug! Preencha as informacoes abaixo para nos ajudar a resolver o problema.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: Verifiquei que nao existe uma issue similar aberta
+          required: true
+        - label: Estou usando a versao mais recente do SDK
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descricao do Bug
+      description: Descreva claramente o que aconteceu
+      placeholder: O que voce esperava que acontecesse vs o que realmente aconteceu?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Passos para Reproduzir
+      description: Como podemos reproduzir o problema?
+      placeholder: |
+        1. Criar cliente com...
+        2. Chamar metodo...
+        3. Ver erro...
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Codigo de Exemplo
+      description: Codigo minimo que reproduz o problema
+      render: go
+      placeholder: |
+        client := iptuapi.NewClient("api_key")
+        result, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
+            Logradouro: "Avenida Paulista",
+        })
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Mensagem de Erro
+      description: Cole a mensagem de erro completa
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Versao do SDK
+      placeholder: "v2.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Versao do Go
+      placeholder: "go1.21.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistema Operacional
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Outro
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Informacoes Adicionais
+      description: Qualquer outra informacao relevante
