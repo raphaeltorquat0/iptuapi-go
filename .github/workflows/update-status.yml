@@ -3,11 +3,11 @@ name: Update SDK Status
 on:
   workflow_run:
     workflows: ["Release"]
-    types:
-      - completed
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
   schedule:
     - cron: '0 7 * * *'  # Daily at 7 AM UTC (after validation)
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,109 +16,101 @@ jobs:
   update-status:
     name: Update SDK Status
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Get latest version from Go proxy
-        id: go_version
+      - name: Get latest version
+        id: version
         run: |
-          VERSION=$(curl -s "https://proxy.golang.org/github.com/raphaeltorquat0/iptuapi-go/@latest" | jq -r '.Version' 2>/dev/null || echo "not published")
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Latest Go proxy version: $VERSION"
-
-      - name: Get go.mod module version
-        id: pkg_version
-        run: |
-          # Get latest git tag as version
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Git tag version: $VERSION"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Run validation check
+      - name: Get validation status
         id: validation
-        continue-on-error: true
         run: |
-          mkdir -p /tmp/status-check
-          cd /tmp/status-check
-          go mod init test/status-check
-          go get github.com/raphaeltorquat0/iptuapi-go@latest 2>/dev/null
+          VALIDATION_STATUS=$(gh run list --workflow=sdk-validation.yml --limit 1 --json conclusion --jq '.[0].conclusion // "unknown"')
+          if [ "$VALIDATION_STATUS" = "success" ]; then
+            echo "STATUS=FUNCIONAL" >> $GITHUB_OUTPUT
+            echo "EMOJI=🟢" >> $GITHUB_OUTPUT
+          else
+            echo "STATUS=VERIFICAR" >> $GITHUB_OUTPUT
+            echo "EMOJI=🟡" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # Test import
-          cat > main.go << 'GOEOF'
+      - name: Update SDK-STATUS.md
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          STATUS="${{ steps.validation.outputs.STATUS }}"
+          EMOJI="${{ steps.validation.outputs.EMOJI }}"
+          
+          cat > SDK-STATUS.md << EOF
+          # Go SDK Status
+
+          **Última atualização:** ${DATE}
+          **Versão:** ${VERSION}
+          **Status:** ${EMOJI} ${STATUS}
+
+          ---
+
+          ## Informações
+
+          | Item | Valor |
+          |------|-------|
+          | **Versão** | ${VERSION} |
+          | **Registry** | Go Modules (\`go get github.com/raphaeltorquat0/iptuapi-go\`) |
+          | **Status** | ${EMOJI} ${STATUS} |
+          | **Mínimo** | Go 1.21+ |
+
+          ## Instalação
+
+          \`\`\`bash
+          go get github.com/raphaeltorquat0/iptuapi-go@latest
+          \`\`\`
+
+          ## Exemplo Rápido
+
+          \`\`\`go
           package main
 
           import (
               "fmt"
-              _ "github.com/raphaeltorquat0/iptuapi-go"
+              iptuapi "github.com/raphaeltorquat0/iptuapi-go"
           )
 
           func main() {
-              fmt.Println("OK")
+              client := iptuapi.NewClient("sua_api_key")
+              cidades, _ := client.IPTUToolsCidades()
+              fmt.Printf("%d cidades disponíveis\n", cidades.Total)
           }
-          GOEOF
+          \`\`\`
 
-          if go run main.go 2>/dev/null; then
-            echo "STATUS=passing" >> $GITHUB_OUTPUT
-          else
-            echo "STATUS=failing" >> $GITHUB_OUTPUT
-          fi
+          ## Validação Automática
 
-      - name: Get current date
-        id: date
-        run: echo "DATE=$(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_OUTPUT
-
-      - name: Update SDK-STATUS.md
-        run: |
-          cat > SDK-STATUS.md << 'EOF'
-          # SDK Status
-
-          > Auto-generated status file. Last updated: ${{ steps.date.outputs.DATE }}
-
-          ## Version Information
-
-          | Metric | Value |
-          |--------|-------|
-          | **Latest Published** | ${{ steps.go_version.outputs.VERSION }} |
-          | **Source Version** | ${{ steps.pkg_version.outputs.VERSION }} |
-          | **Registry** | Go Modules (proxy.golang.org) |
-          | **Module** | github.com/raphaeltorquat0/iptuapi-go |
-
-          ## Validation Status
-
-          | Check | Status |
-          |-------|--------|
-          | **Clean Install** | ${{ steps.validation.outputs.STATUS == 'passing' && '✅ Passing' || '❌ Failing' }} |
-          | **Go Import** | ${{ steps.validation.outputs.STATUS == 'passing' && '✅ Passing' || '❌ Failing' }} |
-
-          ## Compatibility
-
-          | Go Version | Status |
-          |------------|--------|
-          | 1.21 | ✅ Supported |
-          | 1.22 | ✅ Supported |
-          | 1.23 | ✅ Supported |
-
-          ## Links
-
-          - [pkg.go.dev](https://pkg.go.dev/github.com/raphaeltorquat0/iptuapi-go)
-          - [API Documentation](https://docs.iptuapi.com.br)
-          - [GitHub Repository](https://github.com/raphaeltorquat0/iptuapi-go)
+          Este SDK é validado automaticamente:
+          - ✅ Instalação limpa via Go proxy
+          - ✅ Import do pacote
+          - ✅ Teste contra API real (\`IPTUToolsCidades\`)
+          - ✅ Teste autenticado (\`ConsultaEndereco\`)
 
           ---
-          *This file is automatically updated by GitHub Actions.*
+
+          *Atualizado automaticamente pelo CI/CD*
           EOF
 
-      - name: Commit status update
+      - name: Commit and push
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add SDK-STATUS.md
-          git diff --staged --quiet || git commit -m "chore: update SDK status [skip ci]"
-          git push || echo "No changes to push"
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update SDK status [skip ci]"
+            git push
+          fi
