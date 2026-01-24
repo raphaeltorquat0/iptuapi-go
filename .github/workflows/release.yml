@@ -9,9 +9,16 @@ permissions:
   contents: write
 
 jobs:
+  validate-real-api:
+    name: Validate Real API
+    uses: ./.github/workflows/sdk-validation.yml
+    secrets:
+      IPTU_TEST_API_KEY: ${{ secrets.IPTU_TEST_API_KEY }}
+
   release:
     name: Create Release
     runs-on: ubuntu-latest
+    needs: [validate-real-api]
     steps:
       - uses: actions/checkout@v4
         with:

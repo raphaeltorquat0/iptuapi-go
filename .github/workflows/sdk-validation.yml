@@ -1,0 +1,207 @@
+name: SDK Validation
+
+on:
+  workflow_call:
+    secrets:
+      IPTU_TEST_API_KEY:
+        required: true
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+
+env:
+  API_BASE_URL: https://api.iptuapi.com.br
+
+jobs:
+  clean-environment-test:
+    name: Clean Environment Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22', '1.23']
+    steps:
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Create clean test directory
+        run: mkdir -p /tmp/sdk-clean-test
+
+      - name: Initialize Go module
+        working-directory: /tmp/sdk-clean-test
+        run: go mod init test/sdk-validation
+
+      - name: Install SDK from Go proxy
+        working-directory: /tmp/sdk-clean-test
+        run: go get github.com/raphaeltorquat0/iptuapi-go@latest
+
+      - name: Test import
+        working-directory: /tmp/sdk-clean-test
+        run: |
+          cat > main.go << 'EOF'
+          package main
+
+          import (
+              "fmt"
+              iptuapi "github.com/raphaeltorquat0/iptuapi-go"
+          )
+
+          func main() {
+              // Verify package can be imported
+              _ = iptuapi.NewClient
+              fmt.Println("Import successful")
+          }
+          EOF
+          go run main.go
+
+      - name: Verify package structure
+        working-directory: /tmp/sdk-clean-test
+        run: |
+          cat > verify.go << 'EOF'
+          package main
+
+          import (
+              "fmt"
+              "reflect"
+              iptuapi "github.com/raphaeltorquat0/iptuapi-go"
+          )
+
+          func main() {
+              client := iptuapi.NewClient("")
+
+              clientType := reflect.TypeOf(client)
+              fmt.Printf("Client type: %v\n", clientType)
+
+              // Check methods exist via reflection
+              methods := []string{"IptuToolsCidades", "ConsultaEndereco"}
+              for _, method := range methods {
+                  if _, ok := clientType.MethodByName(method); ok {
+                      fmt.Printf("Method %s found\n", method)
+                  } else {
+                      fmt.Printf("Warning: Method %s not found\n", method)
+                  }
+              }
+          }
+          EOF
+          go run verify.go
+
+  smoke-test-real-api:
+    name: Smoke Test Real API
+    runs-on: ubuntu-latest
+    needs: clean-environment-test
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Create test directory
+        run: mkdir -p /tmp/sdk-smoke-test
+
+      - name: Initialize Go module
+        working-directory: /tmp/sdk-smoke-test
+        run: go mod init test/sdk-smoke
+
+      - name: Install SDK from Go proxy
+        working-directory: /tmp/sdk-smoke-test
+        run: go get github.com/raphaeltorquat0/iptuapi-go@latest
+
+      - name: Test public endpoint (iptuToolsCidades)
+        working-directory: /tmp/sdk-smoke-test
+        run: |
+          cat > test_public.go << 'EOF'
+          package main
+
+          import (
+              "fmt"
+              "os"
+              iptuapi "github.com/raphaeltorquat0/iptuapi-go"
+          )
+
+          func main() {
+              fmt.Println("Testing iptuToolsCidades (public endpoint)...")
+
+              client := iptuapi.NewClient("")
+              result, err := client.IptuToolsCidades()
+              if err != nil {
+                  fmt.Printf("Error: %v\n", err)
+                  os.Exit(1)
+              }
+
+              // Validate response structure
+              if result.Cidades == nil {
+                  fmt.Println("Expected cidades to be present")
+                  os.Exit(1)
+              }
+
+              if result.Total < 9 {
+                  fmt.Printf("Expected at least 9 cidades, got %d\n", result.Total)
+                  os.Exit(1)
+              }
+
+              fmt.Println("Public endpoint test passed!")
+              fmt.Printf("Total cidades: %d\n", result.Total)
+          }
+          EOF
+          go run test_public.go
+
+      - name: Test authenticated endpoint (consultaEndereco)
+        working-directory: /tmp/sdk-smoke-test
+        env:
+          IPTU_TEST_API_KEY: ${{ secrets.IPTU_TEST_API_KEY }}
+        run: |
+          cat > test_auth.go << 'EOF'
+          package main
+
+          import (
+              "fmt"
+              "os"
+              iptuapi "github.com/raphaeltorquat0/iptuapi-go"
+          )
+
+          func main() {
+              apiKey := os.Getenv("IPTU_TEST_API_KEY")
+              if apiKey == "" {
+                  fmt.Println("IPTU_TEST_API_KEY not set")
+                  os.Exit(1)
+              }
+
+              fmt.Println("Testing consultaEndereco (authenticated endpoint)...")
+
+              client := iptuapi.NewClient(apiKey)
+              result, err := client.ConsultaEndereco(iptuapi.ConsultaEnderecoParams{
+                  Logradouro: "Avenida Paulista",
+                  Numero:     "1000",
+                  Cidade:     "sp",
+              })
+              if err != nil {
+                  fmt.Printf("Error: %v\n", err)
+                  os.Exit(1)
+              }
+
+              // Validate response structure
+              if result.SQL == "" {
+                  fmt.Println("Expected sql to be a non-empty string")
+                  os.Exit(1)
+              }
+
+              fmt.Println("Authenticated endpoint test passed!")
+              if len(result.SQL) > 50 {
+                  fmt.Printf("SQL field present: %s...\n", result.SQL[:50])
+              } else {
+                  fmt.Printf("SQL field present: %s\n", result.SQL)
+              }
+          }
+          EOF
+          go run test_auth.go
+
+      - name: Validation complete
+        run: |
+          echo "All SDK validation tests passed!"
+          echo "- Clean environment install: OK"
+          echo "- Go import: OK"
+          echo "- Public API (iptuToolsCidades): OK"
+          echo "- Authenticated API (consultaEndereco): OK"
