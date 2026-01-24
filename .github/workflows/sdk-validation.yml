@@ -133,7 +133,7 @@ jobs:
               fmt.Println("Testing ConsultaEndereco...")
 
               client := iptuapi.NewClient(apiKey)
-              result, err := client.ConsultaEndereco("Avenida Paulista", "1000", "sp")
+              result, err := client.ConsultaEndereco("Avenida Paulista", "1000")
               if err != nil {
                   fmt.Printf("Error: %v\n", err)
                   os.Exit(1)
