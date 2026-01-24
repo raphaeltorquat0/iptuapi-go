@@ -76,7 +76,7 @@ jobs:
               fmt.Printf("Client type: %v\n", clientType)
 
               // Check methods exist via reflection
-              methods := []string{"IptuToolsCidades", "ConsultaEndereco"}
+              methods := []string{"IPTUToolsCidades", "ConsultaEndereco"}
               for _, method := range methods {
                   if _, ok := clientType.MethodByName(method); ok {
                       fmt.Printf("Method %s found\n", method)
@@ -116,16 +116,18 @@ jobs:
           package main
 
           import (
+              "context"
               "fmt"
               "os"
               iptuapi "github.com/raphaeltorquat0/iptuapi-go"
           )
 
           func main() {
-              fmt.Println("Testing iptuToolsCidades (public endpoint)...")
+              fmt.Println("Testing IPTUToolsCidades (public endpoint)...")
 
+              ctx := context.Background()
               client := iptuapi.NewClient("")
-              result, err := client.IptuToolsCidades()
+              result, err := client.IPTUToolsCidades(ctx)
               if err != nil {
                   fmt.Printf("Error: %v\n", err)
                   os.Exit(1)
@@ -157,6 +159,7 @@ jobs:
           package main
 
           import (
+              "context"
               "fmt"
               "os"
               iptuapi "github.com/raphaeltorquat0/iptuapi-go"
@@ -169,13 +172,14 @@ jobs:
                   os.Exit(1)
               }
 
-              fmt.Println("Testing consultaEndereco (authenticated endpoint)...")
+              fmt.Println("Testing ConsultaEndereco (authenticated endpoint)...")
 
+              ctx := context.Background()
               client := iptuapi.NewClient(apiKey)
-              result, err := client.ConsultaEndereco(iptuapi.ConsultaEnderecoParams{
+              result, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
                   Logradouro: "Avenida Paulista",
                   Numero:     "1000",
-                  Cidade:     "sp",
+                  Cidade:     iptuapi.CidadeSaoPaulo,
               })
               if err != nil {
                   fmt.Printf("Error: %v\n", err)
