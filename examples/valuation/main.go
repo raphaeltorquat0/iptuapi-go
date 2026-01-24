@@ -2,11 +2,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/raphaeltorquat0/iptuapi-go"
+	iptuapi "github.com/raphaeltorquat0/iptuapi-go"
 )
 
 func main() {
@@ -16,10 +17,11 @@ func main() {
 	}
 
 	client := iptuapi.NewClient(apiKey)
+	ctx := context.Background()
 
-	// Estimativa de valor de mercado com parametros manuais
+	// Estimativa de valor de mercado com parâmetros manuais
 	fmt.Println("=== Valuation Estimate ===")
-	avaliacao, err := client.ValuationEstimate(iptuapi.ValuationParams{
+	avaliacao, err := client.ValuationEstimate(ctx, &iptuapi.ValuationParams{
 		AreaTerreno:    250,
 		AreaConstruida: 180,
 		Bairro:         "Pinheiros",
@@ -27,6 +29,7 @@ func main() {
 		TipoUso:        "Residencial",
 		TipoPadrao:     "Medio",
 		AnoConstrucao:  2010,
+		Cidade:         iptuapi.CidadeSaoPaulo,
 	})
 	if err != nil {
 		if apiErr, ok := err.(*iptuapi.APIError); ok && apiErr.StatusCode == 403 {
@@ -37,18 +40,13 @@ func main() {
 	}
 
 	fmt.Printf("Valor Estimado: R$ %.2f\n", avaliacao.ValorEstimado)
-	fmt.Printf("Valor Minimo:   R$ %.2f\n", avaliacao.ValorMinimo)
-	fmt.Printf("Valor Maximo:   R$ %.2f\n", avaliacao.ValorMaximo)
-	fmt.Printf("Valor por m²:   R$ %.2f\n", avaliacao.ValorM2)
-	fmt.Printf("Confianca:      %.1f%%\n", avaliacao.Confianca*100)
-	fmt.Printf("Modelo Versao:  %s\n", avaliacao.ModeloVersao)
+	fmt.Printf("Valor Mínimo:   R$ %.2f\n", avaliacao.ValorMinimo)
+	fmt.Printf("Valor Máximo:   R$ %.2f\n", avaliacao.ValorMaximo)
+	fmt.Printf("Confiança:      %.1f%%\n", avaliacao.Confianca*100)
 
-	// Avaliacao completa por SQL (combina AVM + ITBI)
-	fmt.Println("\n=== Valuation Evaluate (por SQL) ===")
-	evaluation, err := client.ValuationEvaluate(iptuapi.EvaluateParams{
-		SQL:    "00904801381",
-		Cidade: "sp",
-	})
+	// Buscar imóveis comparáveis
+	fmt.Println("\n=== Imóveis Comparáveis ===")
+	comparaveis, err := client.ValuationComparables(ctx, "Pinheiros", 200, 300, iptuapi.CidadeSaoPaulo, 5)
 	if err != nil {
 		if apiErr, ok := err.(*iptuapi.APIError); ok && apiErr.StatusCode == 403 {
 			fmt.Println("Este endpoint requer plano Pro ou superior")
@@ -57,22 +55,9 @@ func main() {
 		log.Fatalf("Erro: %v", err)
 	}
 
-	fmt.Printf("\nValor Final Estimado: R$ %.2f\n", evaluation.ValorFinal.Estimado)
-	fmt.Printf("Valor Final Minimo:   R$ %.2f\n", evaluation.ValorFinal.Minimo)
-	fmt.Printf("Valor Final Maximo:   R$ %.2f\n", evaluation.ValorFinal.Maximo)
-	fmt.Printf("Metodo:               %s\n", evaluation.ValorFinal.Metodo)
-	fmt.Printf("Confianca:            %.1f%%\n", evaluation.ValorFinal.Confianca*100)
-
-	if evaluation.AvaliacaoAvm != nil {
-		fmt.Println("\n--- AVM (Machine Learning) ---")
-		fmt.Printf("  Valor: R$ %.2f\n", evaluation.AvaliacaoAvm.ValorEstimado)
-		fmt.Printf("  Confianca: %.1f%%\n", evaluation.AvaliacaoAvm.Confianca*100)
-	}
-
-	if evaluation.AvaliacaoItbi != nil {
-		fmt.Println("\n--- ITBI (Transacoes Reais) ---")
-		fmt.Printf("  Valor: R$ %.2f\n", evaluation.AvaliacaoItbi.ValorEstimado)
-		fmt.Printf("  Transacoes: %d\n", evaluation.AvaliacaoItbi.TotalTransacoes)
-		fmt.Printf("  Periodo: %s\n", evaluation.AvaliacaoItbi.Periodo)
+	fmt.Printf("Encontrados %d imóveis comparáveis:\n", len(comparaveis))
+	for i, comp := range comparaveis {
+		fmt.Printf("  %d. %s, %s - %.2f m² - R$ %.2f\n",
+			i+1, comp.Logradouro, comp.Numero, comp.AreaTerreno, comp.ValorVenalTotal)
 	}
 }

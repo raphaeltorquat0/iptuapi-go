@@ -1,13 +1,14 @@
-// Exemplo avancado com timeout customizado e tratamento de erros
+// Exemplo avançado com timeout customizado e tratamento de erros
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"github.com/raphaeltorquat0/iptuapi-go"
+	iptuapi "github.com/raphaeltorquat0/iptuapi-go"
 )
 
 func main() {
@@ -21,40 +22,48 @@ func main() {
 		iptuapi.WithTimeout(60*time.Second),
 	)
 
+	ctx := context.Background()
+
 	// Consulta com tratamento de erros
 	fmt.Println("=== Consulta com Tratamento de Erros ===")
-	resultado, err := client.ConsultaEndereco("Avenida Paulista", "1000")
+	resultado, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
+		Logradouro: "Avenida Paulista",
+		Numero:     "1000",
+		Cidade:     iptuapi.CidadeSaoPaulo,
+	})
 	if err != nil {
 		handleError(err)
 		return
 	}
 
-	fmt.Printf("SQL: %s\n", resultado.DadosIPTU.SQL)
-	fmt.Printf("Valor Venal: R$ %.2f\n", resultado.DadosIPTU.ValorVenal)
+	fmt.Printf("SQL: %s\n", resultado.SQL)
+	fmt.Printf("Valor Venal Total: R$ %.2f\n", resultado.ValorVenalTotal)
 
 	// Consulta por SQL
-	fmt.Println("\n=== Consulta por SQL ===")
-	sqlResult, err := client.ConsultaSQL(resultado.DadosIPTU.SQL)
-	if err != nil {
-		handleError(err)
-		return
-	}
+	if resultado.SQL != "" {
+		fmt.Println("\n=== Consulta por SQL ===")
+		sqlResult, err := client.ConsultaSQL(ctx, resultado.SQL, iptuapi.CidadeSaoPaulo)
+		if err != nil {
+			handleError(err)
+			return
+		}
 
-	fmt.Printf("SQL: %s\n", sqlResult.SQL)
-	fmt.Printf("Ano: %d\n", sqlResult.Ano)
-	fmt.Printf("Logradouro: %s, %s\n", sqlResult.Logradouro, sqlResult.Numero)
-	fmt.Printf("Bairro: %s\n", sqlResult.Bairro)
-	fmt.Printf("Area Terreno: %.2f m²\n", sqlResult.AreaTerreno)
-	fmt.Printf("Area Construida: %.2f m²\n", sqlResult.AreaConstruida)
-	fmt.Printf("Valor Venal Total: R$ %.2f\n", sqlResult.ValorVenal)
-	fmt.Printf("IPTU Valor: R$ %.2f\n", sqlResult.IPTUValor)
+		fmt.Printf("SQL: %s\n", sqlResult.SQL)
+		fmt.Printf("Ano: %d\n", sqlResult.Ano)
+		fmt.Printf("Logradouro: %s, %s\n", sqlResult.Logradouro, sqlResult.Numero)
+		fmt.Printf("Bairro: %s\n", sqlResult.Bairro)
+		fmt.Printf("Área Terreno: %.2f m²\n", sqlResult.AreaTerreno)
+		fmt.Printf("Área Construída: %.2f m²\n", sqlResult.AreaConstruida)
+		fmt.Printf("Valor Venal Total: R$ %.2f\n", sqlResult.ValorVenalTotal)
+		fmt.Printf("IPTU Valor: R$ %.2f\n", sqlResult.IPTUValor)
+	}
 }
 
 func handleError(err error) {
 	if iptuapi.IsAuthError(err) {
-		fmt.Println("Erro: API Key invalida ou expirada")
+		fmt.Println("Erro: API Key inválida ou expirada")
 	} else if iptuapi.IsNotFound(err) {
-		fmt.Println("Erro: Imovel nao encontrado")
+		fmt.Println("Erro: Imóvel não encontrado")
 	} else if iptuapi.IsRateLimit(err) {
 		fmt.Println("Erro: Rate limit excedido. Aguarde antes de tentar novamente.")
 	} else if apiErr, ok := err.(*iptuapi.APIError); ok {

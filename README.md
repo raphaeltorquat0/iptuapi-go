@@ -1,702 +1,315 @@
 # IPTU API - Go SDK
 
-SDK oficial Go para integração com a IPTU API. Acesso a dados de IPTU e ITBI de São Paulo, Belo Horizonte e Recife.
+SDK oficial Go para integracao com a IPTU API. Acesso a dados de IPTU de Sao Paulo, Belo Horizonte e Recife.
 
 [![Go Version](https://img.shields.io/badge/go-1.21%2B-blue)](https://golang.org)
-[![Go Reference](https://pkg.go.dev/badge/github.com/raphaeltorquat0/iptuapi-go.svg)](https://pkg.go.dev/github.com/raphaeltorquat0/iptuapi-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/iptuapi/iptuapi-go.svg)](https://pkg.go.dev/github.com/iptuapi/iptuapi-go)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 
-## Instalação
+## Instalacao
 
 ```bash
-go get github.com/raphaeltorquat0/iptuapi-go
+go get github.com/iptuapi/iptuapi-go
 ```
 
-## Requisitos
-
-- Go 1.21+
-
-## Uso Rápido
+## Uso Rapido
 
 ```go
 package main
 
 import (
+    "context"
     "fmt"
     "log"
 
-    "github.com/raphaeltorquat0/iptuapi-go"
+    "github.com/iptuapi/iptuapi-go"
 )
 
 func main() {
     client := iptuapi.NewClient("sua_api_key")
 
-    // Consulta por endereço
-    resultado, err := client.ConsultaEndereco("Avenida Paulista", "1000", "sp")
+    ctx := context.Background()
+
+    // Consulta por endereco
+    resultado, err := client.ConsultaEndereco(ctx, "Avenida Paulista", "1000", "sp")
     if err != nil {
         log.Fatal(err)
     }
-
-    fmt.Printf("SQL: %s\n", resultado.Data[0].SQL)
-    fmt.Printf("Valor Venal: R$ %.2f\n", resultado.Data[0].ValorVenal)
+    fmt.Printf("SQL: %s, Bairro: %s\n", resultado.SQL, resultado.Bairro)
 }
 ```
 
-## Configuração
+## Configuracao
 
-### Cliente Básico
+### Cliente Basico
 
 ```go
 client := iptuapi.NewClient("sua_api_key")
 ```
 
-### Configuração Avançada
+### Configuracao Avancada
 
 ```go
-import "time"
+import (
+    "log/slog"
+    "time"
+
+    "github.com/iptuapi/iptuapi-go"
+)
+
+// Configuracao de retry
+retryConfig := iptuapi.RetryConfig{
+    MaxRetries:       5,
+    InitialDelay:     time.Second,
+    MaxDelay:         30 * time.Second,
+    BackoffFactor:    2.0,
+    RetryableStatus:  []int{429, 500, 502, 503, 504},
+}
+
+// Configuracao do cliente
+config := iptuapi.ClientConfig{
+    BaseURL:     "https://iptuapi.com.br/api/v1",
+    Timeout:     60 * time.Second,
+    RetryConfig: retryConfig,
+    Logger:      slog.Default(), // Logger compativel com slog
+}
+
+client := iptuapi.NewClientWithConfig("sua_api_key", config)
+```
+
+### Logging Customizado
+
+```go
+import "log/slog"
+
+// Usar slog logger customizado
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelDebug,
+}))
 
 client := iptuapi.NewClient("sua_api_key",
-    iptuapi.WithBaseURL("https://iptuapi.com.br/api/v1"),
-    iptuapi.WithTimeout(60 * time.Second),
-    iptuapi.WithRetry(iptuapi.RetryConfig{
-        MaxRetries:      5,
-        InitialDelay:    1 * time.Second,
-        MaxDelay:        30 * time.Second,
-        BackoffFactor:   2.0,
-        RetryableStatus: []int{429, 500, 502, 503, 504},
-    }),
+    iptuapi.WithLogger(logger),
 )
 ```
 
----
+## Endpoints da API
 
-## Endpoints de Consulta IPTU
-
-### Consulta por Endereço
-
-Busca dados de IPTU por logradouro e número. Disponível em **todos os planos**.
+### Consultas (Todos os Planos)
 
 ```go
-// Consulta básica
-resultado, err := client.ConsultaEndereco("Avenida Paulista", "1000", "sp")
-if err != nil {
-    log.Fatal(err)
-}
+ctx := context.Background()
 
-for _, imovel := range resultado.Data {
-    fmt.Printf("SQL: %s\n", imovel.SQL)
-    fmt.Printf("Bairro: %s\n", imovel.Bairro)
-    fmt.Printf("Valor Venal: R$ %.2f\n", imovel.ValorVenal)
-}
+// Consulta por endereco
+resultado, err := client.ConsultaEndereco(ctx, "Avenida Paulista", "1000", "sp")
+
+// Consulta por CEP
+resultado, err := client.ConsultaCEP(ctx, "01310-100", "sp")
+
+// Consulta por coordenadas (zoneamento)
+resultado, err := client.ConsultaZoneamento(ctx, -23.5505, -46.6333)
 ```
 
-**Parâmetros:**
-
-| Parâmetro | Tipo | Obrigatório | Descrição |
-|-----------|------|-------------|-----------|
-| logradouro | string | Sim | Nome da rua/avenida |
-| numero | string | Sim | Número do imóvel |
-| cidade | string | Não | Código da cidade (sp, bh, recife). Default: sp |
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "sql": "008.045.0123-4",
-      "logradouro": "AV PAULISTA",
-      "numero": "1000",
-      "bairro": "BELA VISTA",
-      "cep": "01310-100",
-      "area_terreno": 500.0,
-      "area_construida": 1200.0,
-      "valor_venal": 2500000.0,
-      "valor_venal_terreno": 1500000.0,
-      "valor_venal_construcao": 1000000.0,
-      "ano_construcao": 1985,
-      "uso": "Comercial",
-      "padrao": "Alto"
-    }
-  ],
-  "metadata": {
-    "total": 1,
-    "cidade": "sp",
-    "ano_referencia": 2024
-  }
-}
-```
-
----
-
-### Consulta por SQL/Índice Cadastral
-
-Busca por identificador único do imóvel. Disponível a partir do plano **Starter**.
+### Consultas Avancadas (Starter+)
 
 ```go
-// São Paulo - número SQL
-resultado, err := client.ConsultaSQL("008.045.0123-4", "sp")
+// Consulta por numero SQL
+resultado, err := client.ConsultaSQL(ctx, "100-01-001-001", "sp")
 
-// Belo Horizonte - índice cadastral
-resultado, err := client.ConsultaSQL("007028 005 0086", "bh")
+// Historico de valores IPTU
+historico, err := client.DadosIPTUHistorico(ctx, "100-01-001-001", "sp")
 
-// Recife - sequencial
-resultado, err := client.ConsultaSQL("123456", "recife")
+// Consulta CNPJ
+empresa, err := client.DadosCNPJ(ctx, "12345678000100")
+
+// Correcao monetaria IPCA
+corrigido, err := client.DadosIPCACorrigir(ctx, 100000.0, "2020-01", "2024-01")
 ```
 
----
-
-### Consulta por CEP
-
-Busca todos os imóveis de um CEP. Disponível em **todos os planos**.
+### Valuation (Pro+)
 
 ```go
-resultado, err := client.ConsultaCEP("01310-100", "sp")
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Encontrados: %d imóveis\n", len(resultado.Data))
-```
-
----
-
-### Consulta Zoneamento
-
-Retorna informações de zoneamento por coordenadas. Disponível em **todos os planos**.
-
-```go
-resultado, err := client.ConsultaZoneamento(-23.5505, -46.6333)
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Zona: %s\n", resultado.Data.Zona)
-fmt.Printf("Uso Permitido: %s\n", resultado.Data.UsoPermitido)
-```
-
----
-
-## Endpoints de Valuation
-
-### Estimativa de Valor de Mercado
-
-Calcula valor estimado de mercado. Disponível a partir do plano **Pro**.
-
-```go
-avaliacao, err := client.ValuationEstimate(iptuapi.ValuationParams{
-    AreaTerreno:    250.0,
-    AreaConstruida: 180.0,
+// Estimativa de valor de mercado
+params := iptuapi.ValuationParams{
+    AreaTerreno:    250,
+    AreaConstruida: 180,
     Bairro:         "Pinheiros",
-    Cidade:         "sp",
     Zona:           "ZM",
     TipoUso:        "Residencial",
     TipoPadrao:     "Medio",
     AnoConstrucao:  2010,
+}
+avaliacao, err := client.ValuationEstimate(ctx, params)
+fmt.Printf("Valor estimado: R$ %.2f\n", avaliacao.ValorEstimado)
+
+// Buscar comparaveis
+comparaveis, err := client.ValuationComparables(ctx, iptuapi.ComparablesParams{
+    Bairro:  "Pinheiros",
+    AreaMin: 150,
+    AreaMax: 250,
+    Cidade:  "sp",
+    Limit:   10,
 })
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Valor Estimado: R$ %.2f\n", avaliacao.ValorEstimado)
-fmt.Printf("Confiança: %.1f%%\n", avaliacao.Confianca*100)
-fmt.Printf("Faixa: R$ %.2f - R$ %.2f\n", avaliacao.ValorMinimo, avaliacao.ValorMaximo)
 ```
 
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "valor_estimado": 1250000.0,
-    "valor_minimo": 1100000.0,
-    "valor_maximo": 1400000.0,
-    "confianca": 0.85,
-    "valor_m2": 6944.44,
-    "metodologia": "regressao_comparativa",
-    "data_referencia": "2024-01-15"
-  }
-}
-```
-
----
-
-### Buscar Comparáveis
-
-Retorna imóveis similares para comparação. Disponível a partir do plano **Pro**.
+### Batch Operations (Enterprise)
 
 ```go
-comparaveis, err := client.ValuationComparables(iptuapi.ComparablesParams{
-    Bairro:   "Pinheiros",
-    AreaMin:  150.0,
-    AreaMax:  250.0,
-    Cidade:   "sp",
-    Limit:    10,
-})
-if err != nil {
-    log.Fatal(err)
+// Valuation em lote (ate 100 imoveis)
+imoveis := []iptuapi.ValuationParams{
+    {AreaTerreno: 250, AreaConstruida: 180, Bairro: "Pinheiros"},
+    {AreaTerreno: 300, AreaConstruida: 200, Bairro: "Moema"},
 }
-
-for _, comp := range comparaveis.Data {
-    fmt.Printf("SQL: %s, Área: %.0fm², Valor: R$ %.2f\n",
-        comp.SQL, comp.AreaConstruida, comp.ValorVenal)
-}
+resultados, err := client.ValuationBatch(ctx, imoveis)
 ```
 
----
-
-## Endpoints de ITBI
-
-### Status da Transação ITBI
-
-Consulta status de uma transação ITBI. Disponível em **todos os planos**.
+## Context e Cancelamento
 
 ```go
-status, err := client.ITBIStatus("ITBI-2024-123456", "sp")
+// Com timeout
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
+
+resultado, err := client.ConsultaEndereco(ctx, "Avenida Paulista", "1000", "sp")
 if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Status: %s\n", status.Data.Status)
-fmt.Printf("Valor ITBI: R$ %.2f\n", status.Data.ValorITBI)
-```
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "protocolo": "ITBI-2024-123456",
-    "status": "aprovado",
-    "data_solicitacao": "2024-01-10",
-    "data_aprovacao": "2024-01-12",
-    "valor_transacao": 500000.0,
-    "valor_venal_referencia": 480000.0,
-    "base_calculo": 500000.0,
-    "aliquota": 0.03,
-    "valor_itbi": 15000.0
-  }
-}
-```
-
----
-
-### Cálculo de ITBI
-
-Calcula valor do ITBI para uma transação. Disponível em **todos os planos**.
-
-```go
-calculo, err := client.ITBICalcular(iptuapi.ITBICalculoParams{
-    SQL:            "008.045.0123-4",
-    ValorTransacao: 500000.0,
-    Cidade:         "sp",
-})
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Valor ITBI: R$ %.2f\n", calculo.Data.ValorITBI)
-fmt.Printf("Alíquota: %.1f%%\n", calculo.Data.Aliquota*100)
-```
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "sql": "008.045.0123-4",
-    "valor_transacao": 500000.0,
-    "valor_venal_referencia": 480000.0,
-    "base_calculo": 500000.0,
-    "aliquota": 0.03,
-    "valor_itbi": 15000.0,
-    "isencao_aplicavel": false,
-    "fundamentacao_legal": "Lei Municipal 11.154/1991"
-  }
-}
-```
-
----
-
-### Histórico de Transações ITBI
-
-Retorna histórico de transações de um imóvel. Disponível a partir do plano **Starter**.
-
-```go
-historico, err := client.ITBIHistorico("008.045.0123-4", "sp")
-if err != nil {
-    log.Fatal(err)
-}
-
-for _, tx := range historico.Data {
-    fmt.Printf("%s - R$ %.2f (%s)\n",
-        tx.DataTransacao, tx.ValorTransacao, tx.TipoTransacao)
-}
-```
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "protocolo": "ITBI-2024-123456",
-      "data_transacao": "2024-01-15",
-      "tipo_transacao": "compra_venda",
-      "valor_transacao": 500000.0,
-      "valor_itbi": 15000.0
-    },
-    {
-      "protocolo": "ITBI-2020-098765",
-      "data_transacao": "2020-06-20",
-      "tipo_transacao": "compra_venda",
-      "valor_transacao": 380000.0,
-      "valor_itbi": 11400.0
-    }
-  ],
-  "metadata": {
-    "total_transacoes": 2,
-    "sql": "008.045.0123-4"
-  }
-}
-```
-
----
-
-### Alíquotas ITBI
-
-Retorna alíquotas vigentes por cidade. Disponível em **todos os planos**.
-
-```go
-aliquotas, err := client.ITBIAliquotas("sp")
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Alíquota padrão: %.1f%%\n", aliquotas.Data.AliquotaPadrao*100)
-```
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "cidade": "sp",
-    "aliquota_padrao": 0.03,
-    "aliquota_financiamento_sfh": 0.005,
-    "valor_minimo_isencao": 0,
-    "base_legal": "Lei Municipal 11.154/1991",
-    "vigencia": "2024-01-01"
-  }
-}
-```
-
----
-
-### Isenções ITBI
-
-Verifica isenções aplicáveis. Disponível em **todos os planos**.
-
-```go
-isencoes, err := client.ITBIIsencoes("sp")
-if err != nil {
-    log.Fatal(err)
-}
-
-for _, isencao := range isencoes.Data {
-    fmt.Printf("- %s: %s\n", isencao.Tipo, isencao.Descricao)
-}
-```
-
----
-
-### Guia ITBI
-
-Gera guia de pagamento do ITBI. Disponível a partir do plano **Starter**.
-
-```go
-guia, err := client.ITBIGuia(iptuapi.ITBIGuiaParams{
-    SQL:            "008.045.0123-4",
-    ValorTransacao: 500000.0,
-    Comprador: iptuapi.Pessoa{
-        Nome:      "João da Silva",
-        Documento: "123.456.789-00",
-        Email:     "joao@email.com",
-    },
-    Vendedor: iptuapi.Pessoa{
-        Nome:      "Maria Santos",
-        Documento: "987.654.321-00",
-    },
-    Cidade: "sp",
-})
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Protocolo: %s\n", guia.Data.Protocolo)
-fmt.Printf("Código de barras: %s\n", guia.Data.CodigoBarras)
-fmt.Printf("Vencimento: %s\n", guia.Data.DataVencimento)
-```
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "protocolo": "ITBI-2024-789012",
-    "codigo_barras": "23793.38128 60000.000003 00000.000400 1 84340000015000",
-    "linha_digitavel": "23793381286000000000300000000400184340000015000",
-    "data_emissao": "2024-01-15",
-    "data_vencimento": "2024-02-14",
-    "valor_itbi": 15000.0
-  }
-}
-```
-
----
-
-### Validar Guia ITBI
-
-Valida autenticidade de uma guia. Disponível em **todos os planos**.
-
-```go
-validacao, err := client.ITBIValidarGuia("ITBI-2024-789012", "sp")
-if err != nil {
-    log.Fatal(err)
-}
-
-if validacao.Data.Valido {
-    fmt.Println("Guia válida!")
-    if validacao.Data.Pago {
-        fmt.Printf("Pago em: %s\n", validacao.Data.DataPagamento)
+    if errors.Is(err, context.DeadlineExceeded) {
+        log.Println("Requisicao cancelada por timeout")
     }
 }
+
+// Com cancelamento manual
+ctx, cancel := context.WithCancel(context.Background())
+
+go func() {
+    time.Sleep(5 * time.Second)
+    cancel() // Cancela a requisicao
+}()
+
+resultado, err := client.ConsultaEndereco(ctx, "Avenida Paulista", "1000", "sp")
 ```
-
----
-
-### Simular ITBI
-
-Simula cálculo sem gerar guia. Disponível em **todos os planos**.
-
-```go
-simulacao, err := client.ITBISimular(iptuapi.ITBISimularParams{
-    ValorTransacao:    500000.0,
-    Cidade:            "sp",
-    TipoFinanciamento: "sfh",
-    ValorFinanciado:   400000.0,
-})
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Valor ITBI Total: R$ %.2f\n", simulacao.Data.ValorITBITotal)
-fmt.Printf("  - Parte financiada (SFH): R$ %.2f\n", simulacao.Data.ValorITBIFinanciado)
-fmt.Printf("  - Parte não financiada: R$ %.2f\n", simulacao.Data.ValorITBINaoFinanciado)
-```
-
-**Resposta:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "valor_transacao": 500000.0,
-    "valor_financiado": 400000.0,
-    "valor_nao_financiado": 100000.0,
-    "aliquota_sfh": 0.005,
-    "aliquota_padrao": 0.03,
-    "valor_itbi_financiado": 2000.0,
-    "valor_itbi_nao_financiado": 3000.0,
-    "valor_itbi_total": 5000.0,
-    "economia_sfh": 10000.0
-  }
-}
-```
-
----
 
 ## Tratamento de Erros
 
 ```go
-import (
-    "errors"
-    "github.com/raphaeltorquat0/iptuapi-go"
-)
+import "github.com/iptuapi/iptuapi-go"
 
-resultado, err := client.ConsultaEndereco("Rua Teste", "100", "sp")
+resultado, err := client.ConsultaEndereco(ctx, "Rua Teste", "100", "sp")
 if err != nil {
     var apiErr *iptuapi.APIError
     if errors.As(err, &apiErr) {
-        switch apiErr.StatusCode {
-        case 401:
-            fmt.Println("API Key inválida")
-        case 403:
-            fmt.Printf("Plano não autorizado. Requer: %s\n", apiErr.RequiredPlan)
-        case 404:
-            fmt.Println("Imóvel não encontrado")
-        case 429:
-            fmt.Printf("Rate limit excedido. Retry em %ds\n", apiErr.RetryAfter)
-        case 422:
-            fmt.Printf("Parâmetros inválidos: %v\n", apiErr.ValidationErrors)
-        default:
-            fmt.Printf("Erro %d: %s\n", apiErr.StatusCode, apiErr.Message)
+        fmt.Printf("Status: %d, Request ID: %s\n", apiErr.StatusCode, apiErr.RequestID)
+        fmt.Printf("Retryable: %v\n", apiErr.IsRetryable())
+    }
+
+    // Verificar tipos especificos de erro
+    if iptuapi.IsAuthError(err) {
+        fmt.Println("API Key invalida")
+    } else if iptuapi.IsForbidden(err) {
+        var forbiddenErr *iptuapi.ForbiddenError
+        if errors.As(err, &forbiddenErr) {
+            fmt.Printf("Plano requerido: %s\n", forbiddenErr.RequiredPlan)
         }
-        fmt.Printf("Request ID: %s\n", apiErr.RequestID)
-    } else {
-        // Erro de rede ou outro
-        fmt.Printf("Erro: %v\n", err)
+    } else if iptuapi.IsNotFound(err) {
+        fmt.Println("Imovel nao encontrado")
+    } else if iptuapi.IsRateLimit(err) {
+        var rateLimitErr *iptuapi.RateLimitError
+        if errors.As(err, &rateLimitErr) {
+            fmt.Printf("Retry em: %d segundos\n", rateLimitErr.RetryAfter)
+        }
+    } else if iptuapi.IsValidation(err) {
+        var validationErr *iptuapi.ValidationError
+        if errors.As(err, &validationErr) {
+            for field, msgs := range validationErr.Errors {
+                fmt.Printf("Campo %s: %v\n", field, msgs)
+            }
+        }
+    } else if iptuapi.IsServerError(err) {
+        fmt.Println("Erro no servidor (retryable)")
+    } else if iptuapi.IsTimeout(err) {
+        fmt.Println("Timeout na requisicao")
+    } else if iptuapi.IsNetworkError(err) {
+        fmt.Println("Erro de conexao")
     }
 }
 ```
 
-### Funções Auxiliares de Erro
+### Funcoes de Verificacao de Erro
 
 ```go
-// Verificar tipo de erro
-if iptuapi.IsNotFound(err) {
-    fmt.Println("Recurso não encontrado")
-}
-
-if iptuapi.IsRateLimit(err) {
-    // Aguardar e tentar novamente
-    time.Sleep(time.Duration(iptuapi.GetRetryAfter(err)) * time.Second)
-}
-
-if iptuapi.IsAuthError(err) {
-    fmt.Println("Problema de autenticação")
-}
-
-if iptuapi.IsRetryable(err) {
-    fmt.Println("Erro temporário, pode tentar novamente")
-}
+// Verificar se erro e de um tipo especifico
+if iptuapi.IsAuthError(err) { ... }
+if iptuapi.IsForbidden(err) { ... }
+if iptuapi.IsNotFound(err) { ... }
+if iptuapi.IsRateLimit(err) { ... }
+if iptuapi.IsValidation(err) { ... }
+if iptuapi.IsServerError(err) { ... }
+if iptuapi.IsTimeout(err) { ... }
+if iptuapi.IsNetworkError(err) { ... }
 ```
-
----
 
 ## Rate Limiting
 
 ```go
-// Verificar rate limit após requisição
-info := client.GetRateLimitInfo()
-if info != nil {
-    fmt.Printf("Limite: %d\n", info.Limit)
-    fmt.Printf("Restantes: %d\n", info.Remaining)
-    fmt.Printf("Reset em: %s\n", info.ResetAt.Format(time.RFC3339))
+// Verificar rate limit apos requisicao
+if rateLimit := client.GetRateLimitInfo(); rateLimit != nil {
+    fmt.Printf("Limite: %d\n", rateLimit.Limit)
+    fmt.Printf("Restantes: %d\n", rateLimit.Remaining)
+    fmt.Printf("Reset em: %s\n", rateLimit.ResetAt().Format(time.RFC3339))
 }
 
-// ID da última requisição (útil para suporte)
+// ID da ultima requisicao (util para suporte)
 fmt.Printf("Request ID: %s\n", client.GetLastRequestID())
 ```
 
-### Limites por Plano
-
-| Plano | Requisições/mês | Requisições/minuto |
-|-------|-----------------|-------------------|
-| Free | 100 | 10 |
-| Starter | 5.000 | 60 |
-| Pro | 50.000 | 300 |
-| Enterprise | Ilimitado | 1.000 |
-
----
-
-## Cidades Suportadas
-
-| Código | Cidade | Identificador | Registros |
-|--------|--------|---------------|-----------|
-| sp | São Paulo | Número SQL | 4.5M+ |
-| bh | Belo Horizonte | Índice Cadastral | 800K+ |
-| recife | Recife | Sequencial | 400K+ |
-
----
-
-## Exemplo Completo
+## Tipos e Structs
 
 ```go
-package main
+// Resultado de consulta de endereco
+type PropertyData struct {
+    SQL             string   `json:"sql"`
+    Logradouro      string   `json:"logradouro"`
+    Numero          string   `json:"numero"`
+    Bairro          string   `json:"bairro"`
+    Cidade          string   `json:"cidade"`
+    CEP             string   `json:"cep"`
+    AreaTerreno     float64  `json:"area_terreno"`
+    AreaConstruida  float64  `json:"area_construida"`
+    ValorVenal      float64  `json:"valor_venal"`
+    ValorIPTU       float64  `json:"valor_iptu"`
+    Latitude        float64  `json:"latitude"`
+    Longitude       float64  `json:"longitude"`
+}
 
-import (
-    "fmt"
-    "log"
-    "os"
-    "time"
+// Parametros de valuation
+type ValuationParams struct {
+    AreaTerreno    float64 `json:"area_terreno"`
+    AreaConstruida float64 `json:"area_construida"`
+    Bairro         string  `json:"bairro"`
+    Zona           string  `json:"zona,omitempty"`
+    TipoUso        string  `json:"tipo_uso,omitempty"`
+    TipoPadrao     string  `json:"tipo_padrao,omitempty"`
+    AnoConstrucao  int     `json:"ano_construcao,omitempty"`
+}
 
-    "github.com/raphaeltorquat0/iptuapi-go"
-)
+// Resultado de valuation
+type ValuationResult struct {
+    ValorEstimado   float64 `json:"valor_estimado"`
+    ValorMinimo     float64 `json:"valor_minimo"`
+    ValorMaximo     float64 `json:"valor_maximo"`
+    Confianca       float64 `json:"confianca"`
+    Comparables     int     `json:"comparables_count"`
+}
 
-func main() {
-    // Configuração
-    client := iptuapi.NewClient(os.Getenv("IPTU_API_KEY"),
-        iptuapi.WithTimeout(30*time.Second),
-        iptuapi.WithRetry(iptuapi.RetryConfig{
-            MaxRetries: 3,
-        }),
-    )
+// Rate limit info
+type RateLimitInfo struct {
+    Limit     int
+    Remaining int
+    Reset     int64
+}
 
-    // Lista de endereços para consultar
-    enderecos := []struct {
-        Logradouro string
-        Numero     string
-    }{
-        {"Avenida Paulista", "1000"},
-        {"Rua Augusta", "500"},
-        {"Avenida Faria Lima", "3000"},
-    }
-
-    for _, end := range enderecos {
-        resultado, err := client.ConsultaEndereco(end.Logradouro, end.Numero, "sp")
-        if err != nil {
-            var apiErr *iptuapi.APIError
-            if errors.As(err, &apiErr) {
-                if apiErr.StatusCode == 429 {
-                    fmt.Printf("Rate limit. Aguardando %ds...\n", apiErr.RetryAfter)
-                    time.Sleep(time.Duration(apiErr.RetryAfter) * time.Second)
-                    continue
-                }
-            }
-            fmt.Printf("Erro ao consultar %s: %v\n", end.Logradouro, err)
-            continue
-        }
-
-        for _, imovel := range resultado.Data {
-            fmt.Printf("SQL: %s, Valor Venal: R$ %.2f\n",
-                imovel.SQL,
-                imovel.ValorVenal,
-            )
-        }
-
-        // Verificar rate limit
-        info := client.GetRateLimitInfo()
-        if info != nil && info.Remaining < 10 {
-            fmt.Printf("Atenção: Apenas %d requisições restantes\n", info.Remaining)
-        }
-    }
-
-    // Exemplo ITBI
-    fmt.Println("\n--- Simulação ITBI ---")
-    simulacao, err := client.ITBISimular(iptuapi.ITBISimularParams{
-        ValorTransacao:    800000.0,
-        Cidade:            "sp",
-        TipoFinanciamento: "sfh",
-        ValorFinanciado:   600000.0,
-    })
-    if err != nil {
-        log.Printf("Erro na simulação ITBI: %v", err)
-    } else {
-        fmt.Printf("Valor ITBI: R$ %.2f\n", simulacao.Data.ValorITBITotal)
-        fmt.Printf("Economia com SFH: R$ %.2f\n", simulacao.Data.EconomiaSFH)
-    }
+func (r *RateLimitInfo) ResetAt() time.Time {
+    return time.Unix(r.Reset, 0)
 }
 ```
-
----
 
 ## Testes
 
@@ -704,26 +317,33 @@ func main() {
 # Rodar testes
 go test ./...
 
+# Com verbose
+go test -v ./...
+
 # Com coverage
 go test -cover ./...
 
-# Verbose
-go test -v ./...
+# Coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
 ```
 
----
+## Cidades Suportadas
 
-## Licença
+| Codigo | Cidade |
+|--------|--------|
+| sp | Sao Paulo |
+| bh | Belo Horizonte |
+| recife | Recife |
+
+## Licenca
 
 Copyright (c) 2025-2026 IPTU API. Todos os direitos reservados.
 
-Este software é propriedade exclusiva da IPTU API. O uso está sujeito aos termos de serviço disponíveis em https://iptuapi.com.br/termos
-
----
+Este software e propriedade exclusiva da IPTU API. O uso esta sujeito aos termos de servico disponiveis em https://iptuapi.com.br/termos
 
 ## Links
 
-- [Documentação](https://iptuapi.com.br/docs)
+- [Documentacao](https://iptuapi.com.br/docs)
 - [API Reference](https://iptuapi.com.br/docs/api)
 - [Portal do Desenvolvedor](https://iptuapi.com.br/dashboard)
-- [Suporte](mailto:suporte@iptuapi.com.br)

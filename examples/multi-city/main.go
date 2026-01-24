@@ -1,12 +1,13 @@
-// Exemplo de consulta IPTU em multiplas cidades
+// Exemplo de consulta IPTU em múltiplas cidades
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/raphaeltorquat0/iptuapi-go"
+	iptuapi "github.com/raphaeltorquat0/iptuapi-go"
 )
 
 func main() {
@@ -16,76 +17,76 @@ func main() {
 	}
 
 	client := iptuapi.NewClient(apiKey)
+	ctx := context.Background()
 
-	// Consulta em Sao Paulo
-	fmt.Println("=== Sao Paulo ===")
-	spResults, err := client.ConsultaIPTU(iptuapi.CidadeSaoPaulo, "Paulista", &iptuapi.ConsultaIPTUOptions{
-		Limit: 3,
+	// Lista de cidades disponíveis
+	fmt.Println("=== Cidades Disponíveis ===")
+	cidades, err := client.IPTUToolsCidades(ctx)
+	if err != nil {
+		log.Printf("Erro ao listar cidades: %v", err)
+	} else {
+		for _, c := range cidades.Cidades {
+			fmt.Printf("  - %s (%s)\n", c.Nome, c.Codigo)
+		}
+	}
+
+	// Consulta em São Paulo
+	fmt.Println("\n=== São Paulo ===")
+	spResult, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
+		Logradouro: "Avenida Paulista",
+		Numero:     "1000",
+		Cidade:     iptuapi.CidadeSaoPaulo,
 	})
 	if err != nil {
 		log.Printf("Erro SP: %v", err)
 	} else {
-		for _, r := range spResults {
-			fmt.Printf("  %s, %v - %s - R$ %.2f\n", r.Logradouro, r.Numero, derefString(r.Bairro), r.ValorVenal)
-		}
+		fmt.Printf("  %s, %s - %s\n", spResult.Logradouro, spResult.Numero, spResult.Bairro)
+		fmt.Printf("  Valor Venal: R$ %.2f\n", spResult.ValorVenalTotal)
 	}
 
 	// Consulta em Belo Horizonte
 	fmt.Println("\n=== Belo Horizonte ===")
-	bhResults, err := client.ConsultaIPTU(iptuapi.CidadeBeloHorizonte, "Afonso Pena", &iptuapi.ConsultaIPTUOptions{
-		Limit: 3,
+	bhResult, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
+		Logradouro: "Avenida Afonso Pena",
+		Numero:     "1000",
+		Cidade:     iptuapi.CidadeBeloHorizonte,
 	})
 	if err != nil {
 		log.Printf("Erro BH: %v", err)
 	} else {
-		for _, r := range bhResults {
-			fmt.Printf("  %s, %v - %s - R$ %.2f\n", r.Logradouro, r.Numero, derefString(r.Bairro), r.ValorVenal)
-		}
+		fmt.Printf("  %s, %s - %s\n", bhResult.Logradouro, bhResult.Numero, bhResult.Bairro)
+		fmt.Printf("  Valor Venal: R$ %.2f\n", bhResult.ValorVenalTotal)
 	}
 
-	// Consulta em Recife (inclui coordenadas)
-	fmt.Println("\n=== Recife ===")
-	reResults, err := client.ConsultaIPTU(iptuapi.CidadeRecife, "Boa Viagem", &iptuapi.ConsultaIPTUOptions{
-		Limit: 3,
+	// Consulta em Rio de Janeiro
+	fmt.Println("\n=== Rio de Janeiro ===")
+	rjResult, err := client.ConsultaEndereco(ctx, &iptuapi.ConsultaEnderecoParams{
+		Logradouro: "Avenida Atlântica",
+		Numero:     "1000",
+		Cidade:     iptuapi.CidadeRioDeJaneiro,
 	})
 	if err != nil {
-		log.Printf("Erro Recife: %v", err)
+		log.Printf("Erro RJ: %v", err)
 	} else {
-		for _, r := range reResults {
-			coords := ""
-			if r.Latitude != nil && r.Longitude != nil {
-				coords = fmt.Sprintf(" (%.6f, %.6f)", *r.Latitude, *r.Longitude)
-			}
-			fmt.Printf("  %s, %v - R$ %.2f%s\n", r.Logradouro, r.Numero, r.ValorVenal, coords)
+		fmt.Printf("  %s, %s - %s\n", rjResult.Logradouro, rjResult.Numero, rjResult.Bairro)
+		fmt.Printf("  Valor Venal: R$ %.2f\n", rjResult.ValorVenalTotal)
+	}
+
+	// Calendário IPTU de cada cidade
+	fmt.Println("\n=== Calendários IPTU 2026 ===")
+	cidadesCodigos := []iptuapi.Cidade{
+		iptuapi.CidadeSaoPaulo,
+		iptuapi.CidadeBeloHorizonte,
+		iptuapi.CidadeRioDeJaneiro,
+	}
+
+	for _, cidade := range cidadesCodigos {
+		cal, err := client.IPTUToolsCalendario(ctx, cidade)
+		if err != nil {
+			log.Printf("Erro calendário %s: %v", cidade, err)
+			continue
 		}
+		fmt.Printf("  %s: %d parcelas, %.0f%% desconto à vista\n",
+			cal.Cidade, cal.ParcelasMax, cal.DescontoVistaPercentual)
 	}
-
-	// Consulta por SQL/Identificador
-	fmt.Println("\n=== Consulta por SQL (SP) ===")
-	sqlResults, err := client.ConsultaIPTUSQL(iptuapi.CidadeSaoPaulo, "00904801381", nil)
-	if err != nil {
-		log.Printf("Erro: %v", err)
-	} else {
-		for _, r := range sqlResults {
-			fmt.Printf("  SQL: %s\n", r.SQL)
-			fmt.Printf("  Endereco: %s, %v\n", r.Logradouro, r.Numero)
-			fmt.Printf("  Valor Venal: R$ %.2f\n", r.ValorVenal)
-			fmt.Printf("  Area Terreno: %.2f m²\n", derefFloat(r.AreaTerreno))
-			fmt.Printf("  Area Construida: %.2f m²\n", derefFloat(r.AreaConstruida))
-		}
-	}
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func derefFloat(f *float64) float64 {
-	if f == nil {
-		return 0
-	}
-	return *f
 }
