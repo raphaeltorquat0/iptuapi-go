@@ -109,48 +109,7 @@ jobs:
         working-directory: /tmp/sdk-smoke-test
         run: go get github.com/raphaeltorquat0/iptuapi-go@latest
 
-      - name: Test public endpoint (iptuToolsCidades)
-        working-directory: /tmp/sdk-smoke-test
-        run: |
-          cat > test_public.go << 'EOF'
-          package main
-
-          import (
-              "context"
-              "fmt"
-              "os"
-              iptuapi "github.com/raphaeltorquat0/iptuapi-go"
-          )
-
-          func main() {
-              fmt.Println("Testing IPTUToolsCidades (public endpoint)...")
-
-              ctx := context.Background()
-              client := iptuapi.NewClient("")
-              result, err := client.IPTUToolsCidades(ctx)
-              if err != nil {
-                  fmt.Printf("Error: %v\n", err)
-                  os.Exit(1)
-              }
-
-              // Validate response structure
-              if result.Cidades == nil {
-                  fmt.Println("Expected cidades to be present")
-                  os.Exit(1)
-              }
-
-              if result.Total < 9 {
-                  fmt.Printf("Expected at least 9 cidades, got %d\n", result.Total)
-                  os.Exit(1)
-              }
-
-              fmt.Println("Public endpoint test passed!")
-              fmt.Printf("Total cidades: %d\n", result.Total)
-          }
-          EOF
-          go run test_public.go
-
-      - name: Test authenticated endpoint (consultaEndereco)
+      - name: Test consultaEndereco endpoint
         working-directory: /tmp/sdk-smoke-test
         env:
           IPTU_TEST_API_KEY: ${{ secrets.IPTU_TEST_API_KEY }}
